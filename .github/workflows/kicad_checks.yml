@@ -1,0 +1,50 @@
+name: KiCad checks
+on:
+  workflow_call:
+    inputs:
+      project_name::
+        required: true
+        type: string
+
+jobs:
+  verify_kicad:
+    name: Run DRC/ERC
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Run ERC checks
+        uses: actions-for-kicad/kicad-actions@v1-k9.0
+        with:
+          schematic_file_name: ${{ inputs.project_name }}.kicad_sch
+          run_erc: true
+
+      - name: Run DRC checks
+        if: always()
+        uses: actions-for-kicad/kicad-actions@v1-k9.0
+        with:
+          pcb_file_name: ${{ inputs.project_name }}.kicad_pcb
+          run_drc: true
+
+      - name: Cat ERC and DRC results
+        if: always()
+        run: |
+          echo "ERC:"
+          echo "=================="
+          cat erc.rpt
+          echo "=================="
+          echo "DRC:"
+          cat drc.rpt
+          echo "=================="
+
+      - name: Upload DRC/ERC report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DRC-ERC report
+          path: |
+            erc.rpt
+            drc.rpt

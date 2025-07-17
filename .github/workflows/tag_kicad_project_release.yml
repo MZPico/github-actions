@@ -1,0 +1,67 @@
+name: Create release on version tag in a KiCad project
+
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        required: true
+        type: string
+
+jobs:
+  create_github_release:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Get latest tag
+        run: |
+          TAG=$(git log -1 --pretty=%B | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?")
+          echo "Version tag detected: $TAG"
+          echo "VERSION=$TAG" >> $GITHUB_ENV
+
+      - name: Generate kicad outputs
+        uses: actions-for-kicad/kicad-actions@v1-k9.0
+        with:
+          schematic_file_name: ${{ inputs.project_name }}.kicad_sch
+          pcb_file_name: ${{ inputs.project_name }}.kicad_pcb
+          schematic_output_pdf: true
+          schematic_output_pdf_file_name : ${{ inputs.project_name }}-Schematic-${{ env.VERSION }}.pdf
+          schematic_output_svg: true
+          schematic_output_bom: true
+          schematic_output_bom_file_name: ${{ inputs.project_name }}-Bom-${{ env.VERSION }}.csv
+          pcb_output_gerbers_and_drill: true
+          pcb_output_image: true
+          pcb_output_image_file_name: ${{ inputs.project_name }}-Pcb-${{ env.VERSION }}.png
+
+      - name: Copy and rename schematics
+        run: |
+          cp schematics/${{ inputs.project_name }}.svg ${{ inputs.project_name }}-Schematic-$VERSION.svg
+
+      - name: Zip gerbers
+        run: |
+          (cd gerbers && zip -r ../${{ inputs.project_name }}-Gerbers-$VERSION.zip .)
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          generate_release_notes: true
+          draft: true
+          files: |
+            ${{ inputs.project_name }}-Schematic-${{ env.VERSION }}.pdf
+            ${{ inputs.project_name }}-Schematic-${{ env.VERSION }}.svg
+            ${{ inputs.project_name }}-Pcb-${{ env.VERSION }}.png
+            ${{ inputs.project_name }}-Gerbers-${{ env.VERSION }}.zip
+            ${{ inputs.project_name }}-Bom-${{ env.VERSION }}.csv
+

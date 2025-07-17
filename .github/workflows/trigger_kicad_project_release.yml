@@ -1,0 +1,54 @@
+name: Trigger a release of a KiCad project
+
+on:
+  workflow_call:
+
+jobs:
+  set-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Validate semantic version format
+        run: |
+          VERSION="${{ github.event.inputs.semver }}"
+          echo "Validating version: $VERSION"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ Error: Version must be in format vX.Y.Z (e.g. v1.2.3)"
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Check if tag already exists
+        run: |
+          if git ls-remote --tags origin | grep -q "refs/tags/${VERSION}$"; then
+            echo "❌ Error: Tag ${VERSION} already exists on remote."
+            exit 1
+          fi
+
+      - name: Update version in KiCad PCB
+        run: |
+          sed -i -E "s/\(gr_text \"v[0-9]+\.[0-9]+\.[0-9]+\"/\(gr_text \"${VERSION}\"/" *.kicad_pcb
+
+      - name: Commit version update
+        run: |
+          git config user.name "Automated Release Bot"
+          git config user.email "actions@github.com"
+          git commit -am "chore: update version on PCB to ${VERSION}" || echo "No changes to commit"
+
+      - name: Push changes
+        run: |
+          git push
+
+      - name: Tag the release
+        run: |
+          git tag "${VERSION}"
+          git push origin "${VERSION}"
+
