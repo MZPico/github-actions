@@ -2,6 +2,10 @@ name: Trigger a release of a KiCad project
 
 on:
   workflow_call:
+    inputs:
+      semver:
+        required: true
+        type: string
 
 jobs:
   set-version:
@@ -12,7 +16,7 @@ jobs:
     steps:
       - name: Validate semantic version format
         run: |
-          VERSION="${{ github.event.inputs.semver }}"
+          VERSION="${{ inputs.semver }}"
           echo "Validating version: $VERSION"
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
             echo "❌ Error: Version must be in format vX.Y.Z (e.g. v1.2.3)"
